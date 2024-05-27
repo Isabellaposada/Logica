@@ -1,0 +1,166 @@
+import random
+import itertools
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
+from Logica import Descriptor, Ytoria, Otoria, Negacion
+
+class Mastermind:
+
+    def __init__(self):
+        self.colores = ['A', 'V', 'M', 'R', 'Y', 'N']
+        self.casillas = ['C1', 'C2', 'C3', 'C4']
+        self.intentos_anteriores = []
+        self.resultados_anteriores = []
+        self.turno = 0
+        self.OinL = Descriptor([len(self.colores), len(self.casillas), 8])
+        self.reglas = self.definir_reglas_base()
+        self.rgb_colores = {'A': (150/255, 217/255, 255/255),
+                            'V': (129/255, 214/255, 141/255),
+                            'M': (188/255, 148/255, 220/255),
+                            'R': (228/255, 114/255, 191/255),
+                            'Y': (255/255, 252/255, 97/255),
+                            'N': (255/255, 200/255, 64/255)}
+        self.circle_radius = 0.1
+        self.space = 0.2
+        self.vertical_space = 0.1
+        self.turno = 0
+        
+    def regla_uno(self):
+        reglas_uno = []
+        for turno in range(8):
+            for casilla in range(4):
+                for color1 in range(len(self.colores)):
+                    for color2 in range(color1 + 1, len(self.colores)):
+                        reglas_uno.append(Ytoria([
+                            str(self.OinL.ravel([color1, casilla, turno])),
+                            str(Negacion(self.OinL.ravel([color2, casilla, turno])))
+                        ]))
+        return reglas_uno
+
+    def regla_dos(self):
+        reglas_dos = []
+        for turno in range(7):
+            for casilla in range(4):
+                for color in range(len(self.colores)):
+                    reglas_dos.append(Ytoria([
+                        str(Negacion(self.OinL.ravel([color, casilla, turno]))),
+                        str(self.OinL.ravel([color, casilla, turno + 1]))
+                    ]))
+        return reglas_dos
+
+    def regla_tres(self):
+        reglas_tres = []
+        for turno in range(7):
+            for casilla1 in range(4):
+                for casilla2 in range(4):
+                    if casilla1 != casilla2:
+                        for color in range(len(self.colores)):
+                            reglas_tres.append(Ytoria([
+                                str(Negacion(self.OinL.ravel([color, casilla1, turno]))),
+                                str(self.OinL.ravel([color, casilla2, turno + 1]))
+                            ]))
+        return reglas_tres
+
+    def regla_cuatro(self):
+        reglas_cuatro = []
+        for turno in range(8):
+            for casilla in range(4):
+                for color in range(len(self.colores)):
+                    reglas_cuatro.append(str(Negacion(self.OinL.ravel([color, casilla, turno]))))
+        return reglas_cuatro
+
+    def definir_reglas_base(self):
+        reglas = self.regla_uno() + self.regla_dos() + self.regla_tres() + self.regla_cuatro()
+        return Ytoria(reglas)
+
+    def visualizar(self):
+        fig, ax = plt.subplots(facecolor=(255/255, 209/255, 219/255))
+        for j, (combinacion_usuario, resultado) in enumerate(zip(self.intentos_anteriores, self.resultados_anteriores)):
+            for i, color_usuario in enumerate(combinacion_usuario):
+                x_large = (i * 2 + 1) * self.circle_radius * 2 + i * self.space
+                y_large = 1.8 - j * 0.4
+                large_circle = patches.Circle((x_large, y_large), self.circle_radius * 2, fill=True, facecolor=self.rgb_colores[color_usuario])
+                ax.add_patch(large_circle)
+
+            x_offset = (4 * 2 + 1) * self.circle_radius * 2 + self.space + 0.5
+            for i, res in enumerate(resultado):
+                x_small = x_offset + i * (self.circle_radius * 2 + self.space)
+                y_small = 1.8 - j * 0.4
+                if res == 'B':
+                    small_circle = patches.Circle((x_small, y_small), self.circle_radius, fill=True, facecolor='black')
+                elif res == 'W':
+                    small_circle = patches.Circle((x_small, y_small), self.circle_radius, fill=True, facecolor='white')
+                else:
+                    small_circle = patches.Circle((x_small, y_small), self.circle_radius, fill=False, edgecolor='black')
+                ax.add_patch(small_circle)
+
+        total_width = (len(self.colores) * self.circle_radius * 2) + ((len(self.colores) - 1) * self.space)
+        start_x = (8 * self.circle_radius * 2 + 7 * self.space - total_width) / 2
+        for i, color in enumerate(self.colores):
+            x = start_x + i * (self.circle_radius * 2 + self.space) + self.circle_radius * 2
+            y = 0.3 - self.vertical_space
+            circ = patches.Circle((x, y), self.circle_radius * 2, fill=True, facecolor=self.rgb_colores[color])
+            ax.add_patch(circ)
+
+        ax.set_aspect('equal')
+        ax.set_xlim(0, 8 * self.circle_radius * 2 + 7 * self.space + 1)
+        ax.set_ylim(0, 2)
+        ax.axis('off')
+        plt.show()
+
+    def primer_intento(self):
+        return ''.join(random.choice(self.colores) for _ in range(4))
+
+    def siguiente_intento(self):
+        combinaciones_posibles = [
+            combinacion for combinacion in self.obtener_combinaciones_posibles()
+            if self.es_combinacion_valida(combinacion)
+        ]
+        return random.choice(combinaciones_posibles)
+    
+    def evaluar_combinacion(self, combinacion_secreta, intento_computador):
+        resultado = ''
+        for i in range(4):
+            if intento_computador[i] == combinacion_secreta[i]:  
+                resultado += 'B'
+            elif intento_computador[i] in combinacion_secreta:
+                resultado += 'W'
+            else:
+                resultado += 'E'
+        return resultado
+    
+    def obtener_combinaciones_posibles(self):
+        return [''.join(c) for c in itertools.product(self.colores, repeat=4)]
+    
+    def es_combinacion_valida(self, combinacion):
+        for intento, resultado in zip(self.intentos_anteriores, self.resultados_anteriores):
+            if self.evaluar_combinacion(combinacion, intento) != resultado:
+                return False
+        return True
+    
+    def jugar(self):
+        print("¡Bienvenidx a Mastermind!")
+        print("Crea una combinación de 4 colores con las siguientes opciones: ")
+        print("Azul, Verde, Morado, Rosado, Amarillo y Naranja.")
+        print("El computador tratará de adivinarla.")
+        input("Presiona Enter para iniciar <3")
+        intento_computador = self.primer_intento()
+        while True:
+            print("El computador ha hecho su intento:", intento_computador)
+            print("Si acertó, marca B.")
+            print("Si el color está en otra posición, marca W.")
+            print("Si el color no está en la combinación, marca E.")
+            resultado = input("Ingresa el resultado: ").upper()
+            if len(resultado) != 4 or not all(c in 'BWE' for c in resultado):
+                print("Por favor, ingresa un resultado válido.")
+                continue
+            self.intentos_anteriores.append(intento_computador)
+            self.resultados_anteriores.append(resultado)
+            self.visualizar()
+            if resultado == 'BBBB':
+                print("El computador ha adivinado tu combinación secreta:", intento_computador)
+                break
+            intento_computador = self.siguiente_intento()
+
+mastermind = Mastermind()
+mastermind.jugar()
